@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parsers — ULPF Console</title>
+<script src="/static/js/theme.js"></script>
+<link rel="stylesheet" href="/static/vendor/bootstrap/css/bootstrap.min.css">
+<link rel="stylesheet" href="/static/vendor/icons/bootstrap-icons.min.css">
+<link rel="stylesheet" href="/static/css/theme.css">
+</head>
+<body>
+<div id="app-shell-root"></div>
+
+<script src="/static/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="/static/js/api.js"></script>
+<script src="/static/js/shell.js"></script>
+<script>
+if (requireAuth()) {
+  renderShell("parsers.html");
+  document.getElementById("page-content").innerHTML = `
+    <div class="panel">
+      <div class="panel-header"><h2 class="panel-title mb-0">Registered parsers</h2></div>
+      <div class="panel-body flush table-responsive">
+        <table class="table table-clean mb-0">
+          <thead><tr><th>Name</th><th>Format family</th><th>Version</th><th>Status</th><th>Parsed</th><th>Failed</th><th>Description</th></tr></thead>
+          <tbody id="parsers-body"><tr><td colspan="7" class="text-body-secondary">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><h2 class="panel-title mb-0">Test a sample</h2></div>
+      <div class="panel-body">
+        <div class="row g-3 mb-3">
+          <div class="col-md-8">
+            <label class="form-label small">Sample log line</label>
+            <textarea class="form-control font-mono" id="sample-text" rows="3" placeholder='e.g. {"src_ip":"1.2.3.4","dst_ip":"5.6.7.8","action":"deny"}'></textarea>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small">Force parser</label>
+            <select class="form-select" id="force-parser"><option value="">— auto-detect —</option></select>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="testParser()"><i class="bi bi-play-fill me-1"></i>Run test</button>
+        <div id="test-result" class="mt-3"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><h2 class="panel-title mb-0">Approved field mappings</h2></div>
+      <div class="panel-body flush table-responsive">
+        <table class="table table-clean mb-0">
+          <thead><tr><th>Name</th><th>Vendor</th><th>Source</th><th>Status</th><th>Fields mapped</th></tr></thead>
+          <tbody id="mappings-body"><tr><td colspan="5" class="text-body-secondary">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  `;
+  init();
+}
+
+async function init() {
+  await loadParsers();
+  await loadMappings();
+}
+
+async function loadParsers() {
+  try {
+    const parsers = await API.get("/api/parsers");
+    document.getElementById("parsers-body").innerHTML = parsers.map(p => `
+      <tr>
+        <td class="font-mono">${escapeHtml(p.name)}</td>
+        <td>${escapeHtml(p.format_family)}</td>
+        <td class="font-mono">${escapeHtml(p.version)}</td>
+        <td><span class="status-badge ${p.is_active ? 'ok' : 'unknown'}">${p.is_active ? 'active' : 'inactive'}</span></td>
+        <td class="font-mono">${p.events_parsed}</td>
+        <td class="font-mono">${p.events_failed}</td>
+        <td class="text-body-secondary">${escapeHtml(p.description || "")}</td>
+      </tr>`).join("");
+    document.getElementById("force-parser").innerHTML += parsers.map(p =>
+      `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join("");
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function loadMappings() {
+  try {
+    const mappings = await API.get("/api/parsers/mappings");
+    const body = document.getElementById("mappings-body");
+    if (!mappings.length) {
+      body.innerHTML = `<tr><td colspan="5"><div class="empty-state"><i class="bi bi-diagram-2"></i>No approved mappings yet. Approve suggestions from the Onboarding page to populate this list.</div></td></tr>`;
+      return;
+    }
+    body.innerHTML = mappings.map(m => `
+      <tr>
+        <td class="font-mono">${escapeHtml(m.name)}</td>
+        <td>${escapeHtml(m.vendor || "—")}</td>
+        <td class="font-mono">${escapeHtml(m.source_id || "—")}</td>
+        <td><span class="status-badge ${m.status === 'approved' ? 'ok' : 'unknown'}">${escapeHtml(m.status)}</span></td>
+        <td class="font-mono">${Object.keys(m.field_map || {}).length}</td>
+      </tr>`).join("");
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function testParser() {
+  const text = document.getElementById("sample-text").value;
+  if (!text.trim()) { toast("Enter a sample line first", "error"); return; }
+  const parserName = document.getElementById("force-parser").value;
+  try {
+    const res = await API.post("/api/parsers/test", { sample_text: text, parser_name: parserName || undefined });
+    document.getElementById("test-result").innerHTML = `
+      <div class="mb-2">
+        <span class="status-badge ${statusBadgeClass(res.status)}">${res.status}</span>
+        <span class="text-body-secondary ms-2">parser used: <span class="font-mono">${escapeHtml(res.parser_used)}</span></span>
+      </div>
+      ${res.warnings.length ? `<div class="text-warning-emphasis small mb-2">${res.warnings.map(escapeHtml).join("<br>")}</div>` : ""}
+      <div class="text-body-secondary small mb-1">Extracted fields</div>
+      <pre class="raw-block">${escapeHtml(JSON.stringify(res.extracted_fields, null, 2))}</pre>
+      <div class="text-body-secondary small mb-1 mt-2">Vendor-specific (unmapped) fields</div>
+      <pre class="raw-block">${escapeHtml(JSON.stringify(res.vendor_fields, null, 2))}</pre>
+    `;
+  } catch (err) { toast(err.message, "error"); }
+}
+</script>
+</body>
+</html>

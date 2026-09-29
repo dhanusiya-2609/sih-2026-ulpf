@@ -1,0 +1,5 @@
+<134>Oct 11 22:40:00 pa-fw-1 CEF:0|Palo Alto Networks|PAN-OS|11.1|TRAFFIC|Traffic allow|3|src=192.168.10.15 dst=8.8.8.8 spt=51001 dpt=443 proto=tcp act=allow deviceExternalId=001606001116
+<134>Oct 11 22:41:00 pa-fw-1 CEF:0|Palo Alto Networks|PAN-OS|11.1|TRAFFIC|Traffic deny|5|src=192.168.10.22 dst=203.0.113.99 spt=52210 dpt=23 proto=tcp act=deny deviceExternalId=001606001116
+<131>Oct 11 22:42:30 pa-fw-1 CEF:0|Palo Alto Networks|PAN-OS|11.1|THREAT|Spyware detected|8|src=192.168.10.30 dst=198.51.100.44 spt=443 dpt=443 proto=tcp act=alert deviceExternalId=001606001116 cs1=spyware-signature-4021
+<134>Oct 11 22:43:00 pa-fw-1 CEF:0|Palo Alto Networks|PAN-OS|11.1|GLOBALPROTECT|VPN connection established|3|src=203.0.113.201 dst=192.168.10.1 act=vpn-connect duser=jdoe
+<131>Oct 11 22:44:15 pa-fw-1 CEF:0|Palo Alto Networks|PAN-OS|11.1|SYSTEM|Admin login failed|6|src=203.0.113.55 act=login-failed duser=admin

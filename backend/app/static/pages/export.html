@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Export — ULPF Console</title>
+<script src="/static/js/theme.js"></script>
+<link rel="stylesheet" href="/static/vendor/bootstrap/css/bootstrap.min.css">
+<link rel="stylesheet" href="/static/vendor/icons/bootstrap-icons.min.css">
+<link rel="stylesheet" href="/static/css/theme.css">
+</head>
+<body>
+<div id="app-shell-root"></div>
+
+<script src="/static/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="/static/js/api.js"></script>
+<script src="/static/js/shell.js"></script>
+<script>
+if (requireAuth()) {
+  renderShell("export.html");
+  document.getElementById("page-content").innerHTML = `
+    <div class="panel">
+      <div class="panel-header"><h2 class="panel-title mb-0">Filtered export</h2></div>
+      <div class="panel-body">
+        <div class="row g-3 mb-3">
+          <div class="col-md-3"><label class="form-label small">Vendor</label><input class="form-control" id="ex-vendor" placeholder="(any)"></div>
+          <div class="col-md-3"><label class="form-label small">Severity</label><input class="form-control" id="ex-severity" placeholder="(any)"></div>
+          <div class="col-md-3">
+            <label class="form-label small">Normalization status</label>
+            <select class="form-select" id="ex-status">
+              <option value="">— any —</option>
+              <option value="success">success</option>
+              <option value="partial">partial</option>
+              <option value="failed">failed</option>
+              <option value="unrecognized">unrecognized</option>
+            </select>
+          </div>
+          <div class="col-md-3"><label class="form-label small">Max records</label><input class="form-control" id="ex-limit" type="number" value="1000" min="1" max="20000"></div>
+        </div>
+        <div class="d-flex gap-2 mb-2">
+          <button class="btn btn-primary" onclick="doExport('json')"><i class="bi bi-filetype-json me-1"></i>Download JSON</button>
+          <button class="btn btn-outline-secondary" onclick="doExport('jsonl')"><i class="bi bi-file-earmark-text me-1"></i>Download JSONL (streaming)</button>
+        </div>
+        <div class="form-text">JSON returns a single document with all matched events (best for &lt; a few thousand records). JSONL streams one JSON object per line and supports larger exports without buffering the whole result in memory.</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><h2 class="panel-title mb-0">Universal event schema</h2></div>
+      <div class="panel-body">
+        <p class="text-body-secondary">Every exported event matches the versioned JSON Schema below. Consumers can validate against it directly.</p>
+        <a href="/api/schema/event" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-braces me-1"></i>View event_schema.json</a>
+      </div>
+    </div>
+  `;
+}
+
+function doExport(format) {
+  const params = new URLSearchParams();
+  const vendor = document.getElementById("ex-vendor").value;
+  const severity = document.getElementById("ex-severity").value;
+  const status = document.getElementById("ex-status").value;
+  const limit = document.getElementById("ex-limit").value;
+  if (vendor) params.set("vendor", vendor);
+  if (severity) params.set("severity", severity);
+  if (status) params.set("normalization_status", status);
+  if (limit) params.set("limit", limit);
+
+  const path = `/api/export/${format}?${params.toString()}`;
+  fetch(path, { headers: { Authorization: "Bearer " + API.token() } })
+    .then(async (resp) => {
+      if (!resp.ok) throw new Error(`Export failed (${resp.status})`);
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `ulpf_export.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast("Export downloaded", "success");
+    })
+    .catch(err => toast(err.message, "error"));
+}
+</script>
+</body>
+</html>

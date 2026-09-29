@@ -1,0 +1,9 @@
+<189>Oct 11 22:14:15 core-rtr-1 %SEC-6-IPACCESSLOGP: list 101 denied tcp 192.168.1.10(50000) -> 10.0.0.5(443), 1 packet
+<189>Oct 11 22:14:20 core-rtr-1 %SEC-6-IPACCESSLOGP: list 101 permitted tcp 192.168.1.11(51000) -> 10.0.0.6(80), 1 packet
+<187>Oct 11 22:15:02 core-rtr-1 %LINK-3-UPDOWN: Interface GigabitEthernet0/1, changed state to down
+<187>Oct 11 22:15:05 core-rtr-1 %LINK-3-UPDOWN: Interface GigabitEthernet0/1, changed state to up
+<186>Oct 11 22:16:00 core-rtr-1 %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/1, changed state to up
+<188>Oct 11 22:17:30 core-rtr-1 %SYS-5-CONFIG_I: Configured from console by admin on vty0 (192.168.1.99)
+<180>Oct 11 22:18:10 core-rtr-1 %SEC_LOGIN-4-LOGIN_FAILED: Login failed [user: admin] [Source: 203.0.113.50] [localport: 22] [Reason: Login Authentication Failed] at 22:18:10 UTC Sat Oct 11 2025
+<189>Oct 11 22:19:45 core-rtr-1 %SEC-6-IPACCESSLOGP: list 101 denied tcp 198.51.100.23(33221) -> 10.0.0.5(3389), 3 packets
+<189>Oct 11 22:20:00 core-rtr-1 %OSPF-5-ADJCHG: Process 1, Nbr 10.0.0.2 on GigabitEthernet0/1 from FULL to DOWN, Neighbor Down: Dead timer expired

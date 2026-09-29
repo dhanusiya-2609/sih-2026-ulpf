@@ -1,0 +1,48 @@
+services:
+  ulpf-backend:
+    build: ./backend
+    image: ulpf-backend:latest
+    container_name: ulpf-backend
+    ports:
+      - "8000:8000"      # Web console + REST API
+      - "5514:5514/udp"  # Syslog UDP collection
+      - "5515:5515"      # Syslog TCP collection
+    environment:
+      ULPF_ENV: production
+      ULPF_DATA_DIR: /data
+      # SQLite by default -- works fully offline with zero extra services.
+      # To use PostgreSQL instead, uncomment below and the db service:
+      # ULPF_DATABASE_URL: postgresql+psycopg2://ulpf:ulpf@ulpf-db:5432/ulpf
+      ULPF_ADMIN_USER: admin
+      ULPF_ADMIN_PASSWORD: admin123   # CHANGE before any non-local deployment
+      ULPF_JWT_SECRET: change-me-to-a-random-secret-in-production
+      ULPF_SYSLOG_UDP_PORT: "5514"
+      ULPF_SYSLOG_TCP_PORT: "5515"
+    volumes:
+      - ulpf-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # Optional PostgreSQL backend for production/multi-instance deployments.
+  # Disabled by default (SQLite needs no separate service for the prototype).
+  # Enable with: docker compose --profile postgres up
+  ulpf-db:
+    image: postgres:16-alpine
+    container_name: ulpf-db
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_USER: ulpf
+      POSTGRES_PASSWORD: ulpf
+      POSTGRES_DB: ulpf
+    volumes:
+      - ulpf-pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  ulpf-data:
+  ulpf-pgdata:

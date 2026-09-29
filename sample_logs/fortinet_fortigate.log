@@ -1,0 +1,6 @@
+<189>date=2025-10-11 time=22:50:00 devname=FGT-EDGE-01 devid=FG100E logid=0000000013 type=traffic subtype=forward action=deny srcip=192.168.20.15 srcport=51000 dstip=10.0.0.9 dstport=443 proto=6 policyid=5 msg="Denied by policy"
+<189>date=2025-10-11 time=22:51:00 devname=FGT-EDGE-01 devid=FG100E logid=0000000013 type=traffic subtype=forward action=accept srcip=192.168.20.20 srcport=52000 dstip=8.8.8.8 dstport=53 proto=17 policyid=2 msg="Allowed DNS"
+<187>date=2025-10-11 time=22:52:10 devname=FGT-EDGE-01 devid=FG100E logid=0100032002 type=event subtype=vpn action=tunnel-up srcip=203.0.113.77 dstip=192.168.20.1 msg="IPsec tunnel established" user=branch-office-vpn
+<180>date=2025-10-11 time=22:53:45 devname=FGT-EDGE-01 devid=FG100E logid=0100037012 type=event subtype=system action=login-failed srcip=203.0.113.88 user=admin msg="Administrator login failed"
+<188>date=2025-10-11 time=22:54:20 devname=FGT-EDGE-01 devid=FG100E logid=0100022917 type=event subtype=system action=interface-down msg="Interface port2 link down"
+corrupted_entry_missing_structure_%%%_unparseable

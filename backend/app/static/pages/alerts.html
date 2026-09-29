@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alerts — ULPF Console</title>
+<script src="/static/js/theme.js"></script>
+<link rel="stylesheet" href="/static/vendor/bootstrap/css/bootstrap.min.css">
+<link rel="stylesheet" href="/static/vendor/icons/bootstrap-icons.min.css">
+<link rel="stylesheet" href="/static/css/theme.css">
+</head>
+<body>
+<div id="app-shell-root"></div>
+
+<script src="/static/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="/static/js/api.js"></script>
+<script src="/static/js/shell.js"></script>
+<script>
+if (requireAuth()) {
+  renderShell("alerts.html");
+  document.getElementById("page-content").innerHTML = `
+    <div class="d-flex justify-content-end gap-2 mb-3">
+      <button class="btn btn-outline-secondary btn-sm" onclick="evaluateNow()"><i class="bi bi-play-circle me-1"></i>Evaluate rules now</button>
+      <button class="btn btn-primary btn-sm" onclick="openCreateModal()"><i class="bi bi-plus-lg me-1"></i>New rule</button>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><h2 class="panel-title mb-0">Rules</h2></div>
+      <div class="panel-body flush table-responsive">
+        <table class="table table-clean mb-0">
+          <thead><tr><th>Rule</th><th>Condition</th><th>Severity</th><th>Triggered</th><th>Last triggered</th><th></th></tr></thead>
+          <tbody id="alerts-body"><tr><td colspan="6" class="text-body-secondary">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><h2 class="panel-title mb-0">Recent matches</h2></div>
+      <div class="panel-body flush table-responsive">
+        <table class="table table-clean mb-0">
+          <thead><tr><th>Triggered at</th><th>Rule</th><th>Event</th></tr></thead>
+          <tbody id="alert-events-body"><tr><td colspan="3" class="text-body-secondary">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  `;
+  loadAlerts();
+  loadAlertEvents();
+}
+
+async function loadAlerts() {
+  try {
+    const alerts = await API.get("/api/alerts");
+    const body = document.getElementById("alerts-body");
+    if (!alerts.length) {
+      body.innerHTML = `<tr><td colspan="6"><div class="empty-state"><i class="bi bi-bell"></i>No alert rules yet.</div></td></tr>`;
+      return;
+    }
+    body.innerHTML = alerts.map(a => `
+      <tr>
+        <td>${escapeHtml(a.rule_name)}</td>
+        <td class="font-mono">${escapeHtml(a.condition.field)} ${escapeHtml(a.condition.operator)} "${escapeHtml(a.condition.value)}"</td>
+        <td><span class="status-badge ${severityBadgeClass(a.severity)}">${escapeHtml(a.severity)}</span></td>
+        <td class="font-mono">${a.triggered_count}</td>
+        <td class="text-body-secondary">${fmtRelative(a.last_triggered_at)}</td>
+        <td><button class="btn btn-sm btn-outline-danger" onclick="deleteAlert('${a.id}')">Delete</button></td>
+      </tr>`).join("");
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function loadAlertEvents() {
+  try {
+    const events = await API.get("/api/alerts/events", { limit: 50 });
+    const body = document.getElementById("alert-events-body");
+    if (!events.length) {
+      body.innerHTML = `<tr><td colspan="3"><div class="empty-state"><i class="bi bi-bell-slash"></i>No matches recorded yet. Create a rule and run "Evaluate rules now".</div></td></tr>`;
+      return;
+    }
+    body.innerHTML = events.map(e => `
+      <tr>
+        <td class="text-body-secondary">${fmtTime(e.triggered_at)}</td>
+        <td>${escapeHtml(e.rule_name || "—")}</td>
+        <td class="font-mono">${escapeHtml(e.normalized_event_id)}</td>
+      </tr>`).join("");
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function evaluateNow() {
+  try {
+    const res = await API.post("/api/alerts/evaluate", {});
+    toast(`Evaluated ${res.evaluated_events} recent events, ${res.matches} new match(es)`, "success");
+    loadAlerts(); loadAlertEvents();
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function deleteAlert(id) {
+  if (!confirm("Delete this alert rule?")) return;
+  try { await API.del(`/api/alerts/${id}`); loadAlerts(); } catch (err) { toast(err.message, "error"); }
+}
+
+function openCreateModal() {
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal fade";
+  backdrop.tabIndex = -1;
+  backdrop.innerHTML = `
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">New alert rule</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <form id="alert-form">
+            <div class="mb-3"><label class="form-label small">Rule name</label><input class="form-control" name="rule_name" required placeholder="e.g. critical-severity-events"></div>
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label class="form-label small">Field</label>
+                <select class="form-select" name="field">
+                  <option value="severity">severity</option>
+                  <option value="action">action</option>
+                  <option value="protocol">protocol</option>
+                  <option value="source_ip">source_ip</option>
+                  <option value="destination_ip">destination_ip</option>
+                  <option value="vendor">vendor</option>
+                  <option value="category">category</option>
+                  <option value="status">normalization status</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small">Operator</label>
+                <select class="form-select" name="operator">
+                  <option value="eq">equals</option>
+                  <option value="contains">contains</option>
+                  <option value="gt">greater than</option>
+                  <option value="lt">less than</option>
+                </select>
+              </div>
+            </div>
+            <div class="mb-3"><label class="form-label small">Value</label><input class="form-control" name="value" required placeholder="critical"></div>
+            <div class="mb-3">
+              <label class="form-label small">Alert severity</label>
+              <select class="form-select" name="severity"><option>low</option><option selected>medium</option><option>high</option><option>critical</option></select>
+            </div>
+            <button class="btn btn-primary w-100" type="submit">Create rule</button>
+          </form>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+  const modal = new bootstrap.Modal(backdrop);
+  backdrop.addEventListener("hidden.bs.modal", () => backdrop.remove());
+  modal.show();
+  document.getElementById("alert-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const payload = Object.fromEntries(new FormData(e.target).entries());
+    try {
+      await API.post("/api/alerts", payload);
+      modal.hide();
+      toast("Rule created", "success");
+      loadAlerts();
+    } catch (err) { toast(err.message, "error"); }
+  });
+}
+</script>
+</body>
+</html>

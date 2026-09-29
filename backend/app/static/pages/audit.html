@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audit Log — ULPF Console</title>
+<script src="/static/js/theme.js"></script>
+<link rel="stylesheet" href="/static/vendor/bootstrap/css/bootstrap.min.css">
+<link rel="stylesheet" href="/static/vendor/icons/bootstrap-icons.min.css">
+<link rel="stylesheet" href="/static/css/theme.css">
+</head>
+<body>
+<div id="app-shell-root"></div>
+
+<script src="/static/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="/static/js/api.js"></script>
+<script src="/static/js/shell.js"></script>
+<script>
+if (requireAuth()) {
+  renderShell("audit.html");
+  document.getElementById("page-content").innerHTML = `
+    <div class="panel">
+      <div class="panel-body flush table-responsive">
+        <table class="table table-clean mb-0">
+          <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Details</th></tr></thead>
+          <tbody id="audit-body"><tr><td colspan="5" class="text-body-secondary">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  `;
+  load();
+}
+
+async function load() {
+  try {
+    const rows = await API.get("/api/audit-logs", { limit: 200 });
+    const body = document.getElementById("audit-body");
+    if (!rows.length) {
+      body.innerHTML = `<tr><td colspan="5"><div class="empty-state"><i class="bi bi-journal-text"></i>No audit entries yet.</div></td></tr>`;
+      return;
+    }
+    body.innerHTML = rows.map(r => `
+      <tr>
+        <td class="text-body-secondary">${fmtTime(r.created_at)}</td>
+        <td>${escapeHtml(r.actor || "—")}</td>
+        <td class="font-mono">${escapeHtml(r.action)}</td>
+        <td class="font-mono">${escapeHtml(r.target || "—")}</td>
+        <td class="text-body-secondary" style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.details && Object.keys(r.details).length ? escapeHtml(JSON.stringify(r.details)) : "—"}</td>
+      </tr>`).join("");
+  } catch (err) { toast(err.message, "error"); }
+}
+</script>
+</body>
+</html>

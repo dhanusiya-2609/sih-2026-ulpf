@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sources — ULPF Console</title>
+<script src="/static/js/theme.js"></script>
+<link rel="stylesheet" href="/static/vendor/bootstrap/css/bootstrap.min.css">
+<link rel="stylesheet" href="/static/vendor/icons/bootstrap-icons.min.css">
+<link rel="stylesheet" href="/static/css/theme.css">
+</head>
+<body>
+<div id="app-shell-root"></div>
+
+<script src="/static/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="/static/js/api.js"></script>
+<script src="/static/js/shell.js"></script>
+<script>
+if (requireAuth()) {
+  renderShell("sources.html");
+  document.getElementById("page-content").innerHTML = `
+    <div class="d-flex justify-content-end gap-2 mb-3">
+      <button class="btn btn-outline-secondary btn-sm" onclick="openUploadModal()"><i class="bi bi-cloud-arrow-up me-1"></i>Upload log files</button>
+      <button class="btn btn-primary btn-sm" onclick="openCreateModal()"><i class="bi bi-plus-lg me-1"></i>Add source manually</button>
+    </div>
+
+    <div class="panel">
+      <div class="panel-body flush table-responsive">
+        <table class="table table-clean mb-0">
+          <thead><tr>
+            <th>Source ID</th><th>Device</th><th>Vendor</th><th>Type</th><th>IP</th>
+            <th>Collection</th><th>Events</th><th>Malformed</th><th>Last event</th><th>Status</th><th></th>
+          </tr></thead>
+          <tbody id="sources-body"><tr><td colspan="11" class="text-body-secondary">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  `;
+  loadSources();
+}
+
+async function loadSources() {
+  try {
+    const sources = await API.get("/api/sources");
+    const body = document.getElementById("sources-body");
+    if (!sources.length) {
+      body.innerHTML = `<tr><td colspan="11"><div class="empty-state"><i class="bi bi-hdd-network"></i>No sources registered yet. Upload log files or add one manually.</div></td></tr>`;
+      return;
+    }
+    body.innerHTML = sources.map(s => `
+      <tr>
+        <td class="font-mono">${escapeHtml(s.source_id)}</td>
+        <td>${escapeHtml(s.device_name)}</td>
+        <td>${escapeHtml(s.vendor)}</td>
+        <td>${escapeHtml(s.device_type)}</td>
+        <td class="font-mono">${escapeHtml(s.ip_address || "—")}</td>
+        <td>${escapeHtml(s.collection_method)}</td>
+        <td class="font-mono">${s.events_received}</td>
+        <td class="font-mono">${s.events_malformed}</td>
+        <td class="text-body-secondary">${fmtRelative(s.last_event_at)}</td>
+        <td><span class="status-badge ${s.enabled ? "ok" : "unknown"}">${s.enabled ? "enabled" : "disabled"}</span></td>
+        <td><button class="btn btn-sm btn-outline-danger" onclick="deleteSource('${s.source_id}')">Remove</button></td>
+      </tr>`).join("");
+  } catch (err) {
+    toast(err.message, "error");
+  }
+}
+
+function openUploadModal() {
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal fade";
+  backdrop.tabIndex = -1;
+  backdrop.innerHTML = `
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-cloud-arrow-up me-2"></i>Upload log files</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-body-secondary small">
+            Select one or more raw log files. A source is created automatically for each one
+            (name taken from the filename), and its events are ingested immediately — no need
+            to fill out the form per device first. Format is auto-detected per file, so you can
+            mix vendors in one selection. Edit vendor/device type afterwards from the table, or
+            set them for the whole batch here.
+          </p>
+          <form id="upload-sources-form">
+            <div class="mb-3">
+              <label class="form-label small">Log file(s)</label>
+              <input type="file" class="form-control" name="files" id="src-file-input" multiple required>
+            </div>
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label class="form-label small">Vendor for this batch (optional)</label>
+                <input class="form-control" name="vendor" placeholder="leave blank to edit per source after">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small">Device type for this batch (optional)</label>
+                <input class="form-control" name="device_type" placeholder="e.g. firewall">
+              </div>
+            </div>
+            <button class="btn btn-primary w-100" type="submit" id="upload-src-btn">Upload &amp; create sources</button>
+          </form>
+          <div id="upload-src-result" class="mt-3"></div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+  const modal = new bootstrap.Modal(backdrop);
+  backdrop.addEventListener("hidden.bs.modal", () => backdrop.remove());
+  modal.show();
+
+  document.getElementById("upload-sources-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const filesInput = document.getElementById("src-file-input");
+    if (!filesInput.files.length) return;
+    const fd = new FormData();
+    for (const f of filesInput.files) fd.append("files", f);
+    const vendor = e.target.vendor.value;
+    const deviceType = e.target.device_type.value;
+    const btn = document.getElementById("upload-src-btn");
+    btn.disabled = true; btn.textContent = "Uploading…";
+    try {
+      const res = await API.postForm("/api/sources/upload", fd, {
+        vendor: vendor || undefined, device_type: deviceType || undefined,
+      });
+      document.getElementById("upload-src-result").innerHTML = `
+        <div class="table-responsive">
+          <table class="table table-clean table-sm mb-0">
+            <thead><tr><th>File</th><th>Source ID</th><th>Detected vendor</th><th>Type</th><th>Total</th><th>Success</th><th>Partial</th><th>Failed</th></tr></thead>
+            <tbody>
+              ${res.results.map(r => r.status === "rejected" ? `
+                <tr><td>${escapeHtml(r.filename)}</td><td colspan="7" class="text-danger">${escapeHtml(r.error)}</td></tr>
+              ` : `
+                <tr>
+                  <td class="font-mono">${escapeHtml(r.filename)}</td>
+                  <td class="font-mono">${escapeHtml(r.source_id)}</td>
+                  <td><strong>${escapeHtml(r.vendor || "Unknown")}</strong></td>
+                  <td>${escapeHtml(r.device_type || "unknown")}</td>
+                  <td class="font-mono">${r.total_events}</td>
+                  <td class="font-mono">${r.success_count}</td>
+                  <td class="font-mono">${r.partial_count}</td>
+                  <td class="font-mono">${r.failed_count}</td>
+                </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>`;
+      toast("Sources created and files ingested", "success");
+      loadSources();
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      btn.disabled = false; btn.textContent = "Upload & create sources";
+    }
+  });
+}
+
+function openCreateModal() {
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal fade";
+  backdrop.tabIndex = -1;
+  backdrop.innerHTML = `
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-plus-lg me-2"></i>Add source</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="create-source-form">
+            <div class="mb-3"><label class="form-label small">Source ID (slug, unique)</label><input class="form-control" name="source_id" required placeholder="e.g. fgt-edge-01"></div>
+            <div class="mb-3"><label class="form-label small">Device name</label><input class="form-control" name="device_name" required placeholder="e.g. FGT-EDGE-01"></div>
+            <div class="row g-3 mb-3">
+              <div class="col-md-6"><label class="form-label small">Vendor</label><input class="form-control" name="vendor" required placeholder="e.g. Fortinet"></div>
+              <div class="col-md-6"><label class="form-label small">Device type</label><input class="form-control" name="device_type" required placeholder="e.g. firewall"></div>
+            </div>
+            <div class="row g-3 mb-3">
+              <div class="col-md-6"><label class="form-label small">IP address</label><input class="form-control" name="ip_address" placeholder="10.0.0.4"></div>
+              <div class="col-md-6">
+                <label class="form-label small">Collection method</label>
+                <select class="form-select" name="collection_method">
+                  <option value="upload">File upload</option>
+                  <option value="udp">UDP syslog</option>
+                  <option value="tcp">TCP syslog</option>
+                </select>
+              </div>
+            </div>
+            <div class="mb-3"><label class="form-label small">Notes (optional)</label><textarea class="form-control" name="notes" rows="2"></textarea></div>
+            <button class="btn btn-primary w-100" type="submit">Create source</button>
+          </form>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+  const modal = new bootstrap.Modal(backdrop);
+  backdrop.addEventListener("hidden.bs.modal", () => backdrop.remove());
+  modal.show();
+
+  document.getElementById("create-source-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = Object.fromEntries(fd.entries());
+    try {
+      await API.post("/api/sources", payload);
+      modal.hide();
+      toast("Source created", "success");
+      loadSources();
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  });
+}
+
+async function deleteSource(id) {
+  if (!confirm(`Remove source "${id}"? Previously ingested events keep their source_id reference but future lookups will not resolve vendor/device metadata for it.`)) return;
+  try {
+    await API.del(`/api/sources/${encodeURIComponent(id)}`);
+    toast("Source removed", "success");
+    loadSources();
+  } catch (err) {
+    toast(err.message, "error");
+  }
+}
+</script>
+</body>
+</html>

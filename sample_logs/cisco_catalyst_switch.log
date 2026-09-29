@@ -1,0 +1,8 @@
+<187>Oct 11 22:30:00 catalyst-sw-1 %LINK-3-UPDOWN: Interface FastEthernet0/12, changed state to down
+<187>Oct 11 22:30:05 catalyst-sw-1 %LINK-3-UPDOWN: Interface FastEthernet0/12, changed state to up
+<190>Oct 11 22:31:10 catalyst-sw-1 %SPANTREE-6-PORTFAST_CONFIG_CHANGE: Portfast has been configured on FastEthernet0/12 but will only have effect when the interface is in a non-trunking mode
+<188>Oct 11 22:32:00 catalyst-sw-1 %SYS-5-CONFIG_I: Configured from console by admin on vty1 (192.168.1.98)
+<181>Oct 11 22:33:15 catalyst-sw-1 %SW_MATM-4-MACFLAP_NOTIF: Host aabb.cc00.1122 in vlan 10 is flapping between port Fa0/5 and port Fa0/8
+<180>Oct 11 22:34:01 catalyst-sw-1 %SEC_LOGIN-4-LOGIN_FAILED: Login failed [user: administrator] [Source: 203.0.113.61] [localport: 22] [Reason: Login Authentication Failed] at 22:34:01 UTC Sat Oct 11 2025
+this line is intentionally malformed and does not match any known syslog pattern @@@@
+<187>Oct 11 22:36:40 catalyst-sw-1 %LINK-3-UPDOWN: Interface GigabitEthernet1/0/24, changed state to down

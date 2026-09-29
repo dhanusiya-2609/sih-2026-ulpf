@@ -1,0 +1,8 @@
+<38>Oct 11 23:00:00 app-srv-1 sshd[1234]: Failed password for invalid user admin from 203.0.113.44 port 51222 ssh2
+<38>Oct 11 23:00:05 app-srv-1 sshd[1234]: Failed password for root from 203.0.113.44 port 51223 ssh2
+<38>Oct 11 23:00:10 app-srv-1 sshd[1235]: Accepted password for deploy from 192.168.1.50 port 44022 ssh2
+<86>Oct 11 23:01:00 app-srv-1 systemd[1]: Started Session 42 of user deploy.
+<30>Oct 11 23:02:00 app-srv-1 kernel: [12345.678] eth0: link down
+<30>Oct 11 23:02:05 app-srv-1 kernel: [12350.123] eth0: link up, 1000Mbps full duplex
+<85>Oct 11 23:03:00 app-srv-1 sudo: deploy : TTY=pts/0 ; PWD=/home/deploy ; USER=root ; COMMAND=/usr/bin/systemctl restart nginx
+{"timestamp": "2025-10-11T23:04:00Z", "host": "app-srv-1", "level": "error", "message": "Database connection pool exhausted", "src_ip": "192.168.1.50"}

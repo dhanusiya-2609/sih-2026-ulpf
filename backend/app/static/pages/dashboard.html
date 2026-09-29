@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard — ULPF Console</title>
+<script src="/static/js/theme.js"></script>
+<link rel="stylesheet" href="/static/vendor/bootstrap/css/bootstrap.min.css">
+<link rel="stylesheet" href="/static/vendor/icons/bootstrap-icons.min.css">
+<link rel="stylesheet" href="/static/css/theme.css">
+</head>
+<body>
+<div id="app-shell-root"></div>
+
+<script src="/static/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="/static/vendor/chartjs/chart.umd.js"></script>
+<script src="/static/js/api.js"></script>
+<script src="/static/js/shell.js"></script>
+<script>
+let charts = {};
+
+if (requireAuth()) {
+  renderShell("dashboard.html");
+  document.getElementById("page-content").innerHTML = `
+    <div class="d-flex justify-content-end mb-2">
+      <span class="pill-live"><span class="led"></span><span id="last-refresh">loading…</span></span>
+    </div>
+
+    <div class="row g-3 mb-1" id="stat-grid"></div>
+
+    <div class="row g-3 mt-1">
+      <div class="col-lg-5">
+        <div class="panel h-100">
+          <div class="panel-header"><h2 class="panel-title mb-0">Normalization outcome</h2></div>
+          <div class="panel-body">
+            <div class="chart-wrap"><canvas id="chart-normalization"></canvas></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-7">
+        <div class="panel h-100">
+          <div class="panel-header"><h2 class="panel-title mb-0">Events per hour</h2></div>
+          <div class="panel-body">
+            <div class="chart-wrap"><canvas id="chart-trend"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mt-1">
+      <div class="col-lg-6">
+        <div class="panel h-100">
+          <div class="panel-header"><h2 class="panel-title mb-0">Events by vendor</h2></div>
+          <div class="panel-body">
+            <div class="chart-wrap sm"><canvas id="chart-vendor"></canvas></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="panel h-100">
+          <div class="panel-header"><h2 class="panel-title mb-0">Events by device</h2></div>
+          <div class="panel-body">
+            <div class="chart-wrap sm"><canvas id="chart-device"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel mt-1">
+      <div class="panel-header">
+        <h2 class="panel-title mb-0">Live syslog listeners</h2>
+        <span class="text-body-secondary" style="font-size:0.75rem;">UDP has no delivery guarantee — counters are best-effort, not a completeness claim</span>
+      </div>
+      <div class="panel-body py-2">
+        <div class="row g-3" id="listener-stats"></div>
+      </div>
+    </div>
+  `;
+  load();
+}
+
+window.addEventListener("themechange", () => { if (API.token()) load(); });
+
+function statCard(icon, tone, value, label) {
+  return `
+    <div class="col-6 col-lg-3">
+      <div class="stat-card tone-${tone}">
+        <div class="stat-icon"><i class="bi ${icon}"></i></div>
+        <div class="stat-value">${value}</div>
+        <div class="stat-label">${label}</div>
+      </div>
+    </div>`;
+}
+
+function destroyChart(key) { if (charts[key]) { charts[key].destroy(); delete charts[key]; } }
+
+async function load() {
+  try {
+    const [s, trend] = await Promise.all([
+      API.get("/api/dashboard/stats"),
+      API.get("/api/dashboard/trend"),
+    ]);
+    document.getElementById("last-refresh").textContent = "updated just now";
+    const pal = chartPalette();
+
+    document.getElementById("stat-grid").innerHTML =
+      statCard("bi-collection", "primary", s.total_events, "Total events") +
+      statCard("bi-check-circle", "ok", s.normalized_success, "Fully normalized") +
+      statCard("bi-exclamation-triangle", "warn", s.normalized_partial, "Partial") +
+      statCard("bi-question-circle", "danger", s.unrecognized, "Unrecognized");
+
+    // --- Normalization outcome: doughnut ---
+    destroyChart("norm");
+    charts.norm = new Chart(document.getElementById("chart-normalization"), {
+      type: "doughnut",
+      data: {
+        labels: ["Success", "Partial", "Failed", "Unrecognized"],
+        datasets: [{
+          data: [s.normalized_success, s.normalized_partial, s.normalized_failed, s.unrecognized],
+          backgroundColor: [pal.ok, pal.warn, pal.danger, pal.unknown],
+          borderWidth: 0,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: "bottom", labels: { color: pal.text, boxWidth: 10, padding: 14 } } },
+        cutout: "68%",
+      },
+    });
+
+    // --- Ingestion trend: line ---
+    destroyChart("trend");
+    charts.trend = new Chart(document.getElementById("chart-trend"), {
+      type: "bar",
+      data: {
+        labels: trend.map(t => t.bucket),
+        datasets: [{
+          label: "Events",
+          data: trend.map(t => t.count),
+          backgroundColor: pal.primary,
+          borderRadius: 4,
+          maxBarThickness: 64,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: pal.text, maxRotation: 0, autoSkip: true }, grid: { display: false } },
+          y: { beginAtZero: true, ticks: { color: pal.text, precision: 0 }, grid: { color: pal.grid } },
+        },
+      },
+    });
+    if (!trend.length) {
+      document.querySelector("#chart-trend").closest(".panel-body").innerHTML = emptyState("bi-graph-up", "No events ingested yet — trend will populate once data arrives.");
+    }
+
+    // --- Vendor / device: horizontal bars ---
+    renderBarChart("chart-vendor", s.events_by_vendor, pal);
+    renderBarChart("chart-device", s.events_by_device, pal);
+
+    document.getElementById("listener-stats").innerHTML = `
+      ${miniStat("UDP received", s.udp_received)}
+      ${miniStat("UDP malformed", s.udp_malformed)}
+      ${miniStat("UDP dropped", s.udp_dropped)}
+      ${miniStat("TCP received", s.tcp_received)}
+      ${miniStat("TCP malformed", s.tcp_malformed)}
+    `;
+  } catch (err) {
+    toast(err.message, "error");
+  }
+}
+
+function miniStat(label, value) {
+  return `<div class="col-6 col-md-2">
+    <div class="text-body-secondary" style="font-size:0.72rem;">${label}</div>
+    <div class="font-mono fw-semibold" style="font-size:1.1rem;">${value}</div>
+  </div>`;
+}
+
+function emptyState(icon, text) {
+  return `<div class="empty-state"><i class="bi ${icon}"></i>${escapeHtml(text)}</div>`;
+}
+
+function renderBarChart(canvasId, dataObj, pal) {
+  const key = canvasId;
+  destroyChart(key);
+  const entries = Object.entries(dataObj || {}).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const canvas = document.getElementById(canvasId);
+  if (!entries.length) {
+    canvas.closest(".panel-body").innerHTML = emptyState("bi-bar-chart", "No data yet.");
+    return;
+  }
+  charts[key] = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels: entries.map(([k]) => k),
+      datasets: [{
+        data: entries.map(([, v]) => v),
+        backgroundColor: pal.series,
+        borderRadius: 4,
+        maxBarThickness: 28,
+      }],
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: pal.text, precision: 0 }, grid: { color: pal.grid } },
+        y: { ticks: { color: pal.text }, grid: { display: false } },
+      },
+    },
+  });
+}
+
+function hexToRgba(hex, alpha) {
+  const h = hex.replace("#", "");
+  const bigint = parseInt(h.length === 3 ? h.split("").map(c => c + c).join("") : h, 16);
+  const r = (bigint >> 16) & 255, g = (bigint >> 8) & 255, b = bigint & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+</script>
+</body>
+</html>

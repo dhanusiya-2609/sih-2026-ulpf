@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings — ULPF Console</title>
+<script src="/static/js/theme.js"></script>
+<link rel="stylesheet" href="/static/vendor/bootstrap/css/bootstrap.min.css">
+<link rel="stylesheet" href="/static/vendor/icons/bootstrap-icons.min.css">
+<link rel="stylesheet" href="/static/css/theme.css">
+</head>
+<body>
+<div id="app-shell-root"></div>
+
+<script src="/static/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="/static/js/api.js"></script>
+<script src="/static/js/shell.js"></script>
+<script>
+if (requireAuth()) {
+  renderShell("settings.html");
+  document.getElementById("page-content").innerHTML = `
+    <div class="panel">
+      <div class="panel-header"><h2 class="panel-title mb-0">Deployment</h2></div>
+      <div class="panel-body" id="settings-body"><div class="text-body-secondary">Loading…</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><h2 class="panel-title mb-0">Live syslog collection</h2></div>
+      <div class="panel-body">
+        <p class="text-body-secondary">Point network devices at this host's UDP or TCP syslog port shown above. UDP delivery is best-effort by protocol design — there is no delivery guarantee and loss cannot be fully ruled out. For higher assurance, prefer TCP syslog forwarding or scheduled file export + bulk upload.</p>
+        <p class="text-body-secondary mb-0">To auto-populate <code>vendor</code>/<code>device_type</code> for live-collected events, register a Source with the device's IP address on the <a href="sources.html">Sources</a> page — the listener resolves incoming traffic to a source by matching the peer IP.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><h2 class="panel-title mb-0">Integrations</h2></div>
+      <div class="panel-body">
+        <form id="integ-form" class="mb-3">
+          <div class="row g-3 mb-3">
+            <div class="col-md-6"><label class="form-label small">Name</label><input class="form-control" name="name" required placeholder="e.g. soc-webhook"></div>
+            <div class="col-md-6">
+              <label class="form-label small">Type</label>
+              <select class="form-select" name="integration_type">
+                <option value="webhook">Webhook (HTTP POST)</option>
+                <option value="file_drop">File drop (JSONL export directory)</option>
+              </select>
+            </div>
+          </div>
+          <div class="mb-3"><label class="form-label small">Config (JSON)</label><textarea class="form-control font-mono" name="config_json" rows="2" placeholder='{"url": "https://example.internal/hook"}'></textarea></div>
+          <button class="btn btn-primary" type="submit">Register integration</button>
+        </form>
+        <div class="table-responsive">
+          <table class="table table-clean mb-0">
+            <thead><tr><th>Name</th><th>Type</th><th>Status</th></tr></thead>
+            <tbody id="integ-body"><tr><td colspan="3" class="text-body-secondary">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+  loadSettings();
+  loadIntegrations();
+  document.getElementById("integ-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    let config = {};
+    try { config = fd.get("config_json") ? JSON.parse(fd.get("config_json")) : {}; }
+    catch { toast("Config must be valid JSON", "error"); return; }
+    try {
+      await API.post("/api/integrations", { name: fd.get("name"), integration_type: fd.get("integration_type"), config });
+      toast("Integration registered", "success");
+      e.target.reset();
+      loadIntegrations();
+    } catch (err) { toast(err.message, "error"); }
+  });
+}
+
+async function loadSettings() {
+  try {
+    const s = await API.get("/api/settings");
+    document.getElementById("settings-body").innerHTML = `
+      <dl class="kv-grid">
+        <dt>Environment</dt><dd>${escapeHtml(s.environment)}</dd>
+        <dt>UDP syslog listener</dt><dd>${s.udp_listener_enabled ? `enabled, port ${s.syslog_udp_port}` : "disabled"}</dd>
+        <dt>TCP syslog listener</dt><dd>${s.tcp_listener_enabled ? `enabled, port ${s.syslog_tcp_port}` : "disabled"}</dd>
+        <dt>Max upload size</dt><dd>${s.max_upload_mb} MB</dd>
+        <dt>Event retention</dt><dd>${s.retention_days} days (informational; enforcement is a documented extension point)</dd>
+        <dt>Offline / air-gapped mode</dt><dd>${s.offline_mode ? "yes — no external network calls made by the backend" : "no"}</dd>
+      </dl>`;
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function loadIntegrations() {
+  try {
+    const list = await API.get("/api/integrations");
+    const body = document.getElementById("integ-body");
+    if (!list.length) {
+      body.innerHTML = `<tr><td colspan="3"><div class="empty-state"><i class="bi bi-plug"></i>No integrations registered.</div></td></tr>`;
+      return;
+    }
+    body.innerHTML = list.map(i => `
+      <tr><td>${escapeHtml(i.name)}</td><td>${escapeHtml(i.type)}</td>
+      <td><span class="status-badge ${i.is_active ? 'ok' : 'unknown'}">${i.is_active ? 'active' : 'inactive'}</span></td></tr>`).join("");
+  } catch (err) { toast(err.message, "error"); }
+}
+</script>
+</body>
+</html>
