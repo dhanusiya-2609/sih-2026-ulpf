@@ -66,19 +66,19 @@ requirement-by-requirement account, evidenced by the automated test suite.
 
 | Dashboard (light) | Dashboard (dark) |
 |---|---|
-| *Add `docs/screenshots/dashboard-light.png`* | *Add `docs/screenshots/dashboard-dark.png`* |
+| ![Dashboard light](docs/screenshots/dashboard-light.png) | ![Dashboard dark](docs/screenshots/dashboard-dark.png) |
 
 | Event Explorer | Sources — bulk log upload |
 |---|---|
-| *Add `docs/screenshots/events.png`* | *Add `docs/screenshots/sources.png`* |
+| ![Event Explorer](docs/screenshots/events.png) | ![Sources](docs/screenshots/sources.png) |
 
 ---
 
 ## Quick Start (Docker — recommended)
 
 ```bash
-git clone https://github.com/<your-org>/ulpf.git
-cd ulpf
+git clone https://github.com/dhanusiya-2609/sih-2026-ulpf.git
+cd sih-2026-ulpf
 cp .env.example .env        # edit ULPF_ADMIN_PASSWORD and ULPF_JWT_SECRET
 docker compose up --build
 ```
@@ -189,31 +189,6 @@ tests, RBAC and redaction tests, and full API acceptance-criteria coverage.
   data — see `ULPF_REDACT_FIELDS`.
 - The system makes no external network calls; it is designed to run fully
   air-gapped.
-
----
-
-## Demo video generator
-
-```bash
-pip install -r video/requirements-video.txt
-python -m playwright install chromium   # one-time, for real UI screenshots
-pip install edge-tts                    # recommended voice-over engine
-
-python video/make_demo_video.py
-```
-
-This starts the real backend, drives the actual web console in a headless
-browser (login → bulk-upload the sample logs → dashboard → search → event
-detail → onboarding → parser test → alerts → export → dark theme), runs the
-real pytest suite, and narrates all of it with synthesized speech into
-`ulpf_demo.mp4` (+ `.srt` subtitles). Every number spoken is read live from
-the running system, so the narration always matches what's on screen — see
-`video/make_demo_video.py` for the full scene list and options (`--tts`,
-`--voice`, `--no-browser` for a headless-browser-free fallback that uses
-real API output instead of UI screenshots). If no video-generation
-environment is available, `video/VIDEO_PROMPT.md` has a written prompt for
-an AI video tool instead.
-
 ---
 
 ## Documentation
@@ -222,8 +197,6 @@ an AI video tool instead.
 |---|---|
 | [`docs/architecture.md`](docs/architecture.md) | System design, data flow, component responsibilities, trade-offs |
 | [`docs/evaluation_checklist.md`](docs/evaluation_checklist.md) | Requirement-by-requirement status with test evidence |
-| [`docs/demo_script.md`](docs/demo_script.md) | ~2-minute guided walkthrough |
-| [`docs/presentation.md`](docs/presentation.md) | 5-slide technical summary |
 | [`sample_logs/README.md`](sample_logs/README.md) | What each sample log contains and expected parsing outcome |
 
 ## Known limitations
@@ -247,3 +220,5 @@ MIT — see [`LICENSE`](LICENSE).
 Issues and pull requests are welcome. For a new log format, add one parser
 class implementing `detect()`/`parse()` under `backend/app/parsers/` and
 register it in `registry.py` — no other code needs to change.
+
+## Thank You
